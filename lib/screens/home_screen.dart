@@ -9,7 +9,6 @@ import 'login_screen.dart';
 import 'settings_screen.dart'; 
 
 class HomeScreen extends StatefulWidget {
-
   final String username;
 
   const HomeScreen({super.key, required this.username});
@@ -18,21 +17,35 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-
 class _HomeScreenState extends State<HomeScreen> {
 
   List<Transaction> _transactions = [];
 
-  double get totalBalance {
+  // ✅ NEW: Budget value (you can later move this to settings)
+  double budget = 500;
 
+  // ✅ CURRENT BALANCE
+  double get totalBalance {
     double balance = 0;
 
     for (var tx in _transactions) {
       balance += tx.isIncome ? tx.amount : -tx.amount;
     }
 
-
     return balance;
+  }
+
+  // ✅ NEW: TOTAL EXPENSES CALCULATION
+  double get totalExpenses {
+    double total = 0;
+
+    for (var tx in _transactions) {
+      if (!tx.isIncome) {
+        total += tx.amount;
+      }
+    }
+
+    return total;
   }
 
   @override
@@ -47,47 +60,31 @@ class _HomeScreenState extends State<HomeScreen> {
         await DatabaseHelper().getTransactions(widget.username);
 
     setState(() {
-
       _transactions = data.map((tx) => Transaction(
-
         title: tx['title'],
-
         amount: (tx['amount'] as num).toDouble(),
-
         category: tx['category'],
-
         isIncome: tx['isIncome'] == 1,
-
         date: DateTime.parse(tx['date']),
-
       )).toList();
     });
   }
 
-
   void addTransaction(Transaction transaction) async {
 
     await DatabaseHelper().insertTransaction({
-
       "username": widget.username,
-
       "title": transaction.title,
-
       "amount": transaction.amount,
-
       "category": transaction.category,
-
       "isIncome": transaction.isIncome ? 1 : 0,
-
       "date": transaction.date.toIso8601String(),
-
-    }
-    );
+    });
 
     loadTransactions();
   }
 
-  //  delete button deletes from database
+  // ✅ DELETE WITH DATABASE
   void deleteTransaction(int index) async {
 
     final tx = _transactions[index];
@@ -102,30 +99,48 @@ class _HomeScreenState extends State<HomeScreen> {
     loadTransactions();
   }
 
+  // ✅ NEW: DELETE CONFIRMATION POPUP
+  void confirmDelete(int index) async {
+
+    bool? confirm = await showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Delete Transaction"),
+        content: const Text("Are you sure you want to delete this transaction?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text("Delete"),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      deleteTransaction(index);
+    }
+  }
 
   Widget buildMenuBox(
       BuildContext context, String title, Color color, Widget page) {
 
     return GestureDetector(
-
       onTap: () {
-
         Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => page),
         );
-
       },
-
       child: Container(
-
         height: 120,
-
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(18),
         ),
-
         child: Center(
           child: Text(
             title,
@@ -149,12 +164,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
 
       appBar: AppBar(
-
         title: Text('Dashboard - ${widget.username}'),
-
         actions: [
 
-          // Settings Button added
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {
@@ -169,19 +181,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
           IconButton(
             icon: const Icon(Icons.logout),
-
             onPressed: () {
-
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
                   builder: (_) => const LoginScreen(),
                 ),
               );
-
             },
           ),
-
         ],
       ),
 
@@ -189,15 +197,13 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.all(16),
 
         child: Column(
-
           children: [
 
+            // ✅ BALANCE CARD
             Card(
               elevation: 4,
-
               child: Padding(
                 padding: const EdgeInsets.all(20),
-
                 child: Column(
                   children: [
 
@@ -210,7 +216,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     Text(
                       "£${balance.toStringAsFixed(2)}",
-
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -225,15 +230,34 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
 
+            const SizedBox(height: 15),
 
-            const SizedBox(height: 25),
+            // ✅ NEW: BUDGET ALERT
+            if (totalExpenses > budget)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  "⚠️ You have exceeded your budget!",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+
+            const SizedBox(height: 10),
 
             GridView.count(
               crossAxisCount: 3,
               shrinkWrap: true,
               mainAxisSpacing: 15,
               crossAxisSpacing: 15,
-
               children: [
 
                 buildMenuBox(
@@ -276,47 +300,34 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 10),
 
             Expanded(
-
               child: _transactions.isEmpty
-
                   ? const Center(
                       child: Text("No transactions yet"),
                     )
-
                   : ListView.builder(
-
                       itemCount: _transactions.length,
-
                       itemBuilder: (context, index) {
 
                         final tx = _transactions[index];
 
                         return Card(
-
                           child: ListTile(
 
                             leading: CircleAvatar(
-
                               backgroundColor:
                                   tx.isIncome
                                       ? Colors.green
                                       : Colors.red,
-
                               child: Icon(
-
                                 tx.isIncome
                                     ? Icons.arrow_downward
                                     : Icons.arrow_upward,
-
                                 color: Colors.white,
                               ),
                             ),
 
                             title: Text(tx.title),
-
                             subtitle: Text(tx.category),
-
-                            // updated to show amount and delete button
 
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -324,7 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                 Text(
                                   "£${tx.amount.toStringAsFixed(2)}",
-
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: tx.isIncome
@@ -335,8 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.grey),
-                                  onPressed: () => deleteTransaction(index),
-                                  
+                                  onPressed: () => confirmDelete(index), // ✅ UPDATED
                                 ),
                               ],
                             ),
@@ -345,7 +354,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-
             ),
 
           ],
