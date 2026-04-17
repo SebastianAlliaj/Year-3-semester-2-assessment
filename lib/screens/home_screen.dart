@@ -25,8 +25,12 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Transaction> _transactions = [];
 
   // Simple budget value (used for alert if user overspends)
-
   double budget = 500;
+
+  // NEW: savings jar + goal + currency
+  double savings = 0;
+  double savingsGoal = 1000;
+  String currency = "£";
 
 // Calculates the current balance based on income - expenses
 
@@ -164,6 +168,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // NEW: add money to savings jar
+  void addToSavings() {
+    setState(() {
+      savings += 50;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -224,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 10),
 
                     Text(
-                      "£${balance.toStringAsFixed(2)}",
+                      "$currency${balance.toStringAsFixed(2)}",
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -234,6 +245,30 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 15),
+
+            // NEW: savings goal progress
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    const Text("Savings Goal"),
+                    const SizedBox(height: 5),
+                    LinearProgressIndicator(
+                      value: savings / savingsGoal,
+                    ),
+                    const SizedBox(height: 5),
+                    Text("$currency$savings / $currency$savingsGoal"),
+                    ElevatedButton(
+                      onPressed: addToSavings,
+                      child: const Text("Add £50 to Savings"),
+                    ),
                   ],
                 ),
               ),
@@ -343,7 +378,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
 
                                 Text(
-                                  "£${tx.amount.toStringAsFixed(2)}",
+                                  "$currency${tx.amount.toStringAsFixed(2)}",
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: tx.isIncome
@@ -354,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.grey),
-                                  onPressed: () => confirmDelete(index), // ✅ UPDATED
+                                  onPressed: () => confirmDelete(index),
                                 ),
                               ],
                             ),
