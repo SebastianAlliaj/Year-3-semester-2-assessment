@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:pie_chart/pie_chart.dart';
+
 import '../models/transaction.dart';
+import '../providers/setting_provider.dart';
 
 class InsightsScreen extends StatelessWidget {
   final List<Transaction> transactions;
@@ -8,41 +11,49 @@ class InsightsScreen extends StatelessWidget {
   const InsightsScreen({
     super.key,
     required this.transactions,
-  }
-  );
+  });
 
-  // Calculates total income from all transactions
-
+  // calculates total income
   double get totalIncome {
     return transactions
         .where((tx) => tx.isIncome)
         .fold(0, (sum, tx) => sum + tx.amount);
   }
-  
-  // Calculates total expenses from all transactions
 
+  // calculates total expenses
   double get totalExpenses {
     return transactions
         .where((tx) => !tx.isIncome)
         .fold(0, (sum, tx) => sum + tx.amount);
   }
 
-  // Groups expenses by category (used for pie chart + list)
-
+  // groups expenses by category (used for pie chart)
   Map<String, double> get expenseByCategory {
     final Map<String, double> data = {};
 
     for (var tx in transactions.where((t) => !t.isIncome)) {
-      // if category exists, add to it, otherwise start from 0
       data[tx.category] = (data[tx.category] ?? 0) + tx.amount;
     }
 
     return data;
   }
 
-// Reusable card widget for income / expenses / balance
+  // NEW: groups savings by month (YYYY-MM)
+  Map<String, double> getMonthlySavings(List<Map<String, dynamic>> history) {
+    final Map<String, double> data = {};
 
-  Widget buildSummaryCard(String title, double amount, Color color) {
+    for (var item in history) {
+      final date = DateTime.parse(item["date"]);
+      final key = "${date.year}-${date.month.toString().padLeft(2, '0')}";
+
+      data[key] = (data[key] ?? 0) + item["amount"];
+    }
+
+    return data;
+  }
+
+  // reusable card for income / expense / balance
+  Widget buildSummaryCard(String title, double amount, Color color, String currency) {
     return Expanded(
       child: Card(
         elevation: 3,
@@ -58,11 +69,11 @@ class InsightsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '£${amount.toStringAsFixed(2)}',
+                '$currency${amount.toStringAsFixed(2)}',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: color, // colour changes depending on type
+                  color: color,
                 ),
               ),
             ],
@@ -74,7 +85,10 @@ class InsightsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // net balance = income - expenses
+
+    final settings = Provider.of<SettingProvider>(context);
+    final monthlySavings = getMonthlySavings(settings.savingsHistory);
+
     final netBalance = totalIncome - totalExpenses;
 
     return Scaffold(
@@ -82,8 +96,8 @@ class InsightsScreen extends StatelessWidget {
         title: const Text('Insights'),
       ),
       body: Padding(
-        // If no data, show message instead of empty screen
         padding: const EdgeInsets.all(16),
+
         child: transactions.isEmpty
             ? const Center(
                 child: Text(
@@ -103,22 +117,20 @@ class InsightsScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 15),
-                  // Top summary cards (income, expenses, balance)
 
                   Row(
                     children: [
                       buildSummaryCard(
-                          "Income", totalIncome, Colors.green),
+                          "Income", totalIncome, Colors.green, settings.currency),
                       const SizedBox(width: 10),
                       buildSummaryCard(
-                          "Expenses", totalExpenses, Colors.red),
+                          "Expenses", totalExpenses, Colors.red, settings.currency),
                       const SizedBox(width: 10),
                       buildSummaryCard(
                           "Balance",
                           netBalance,
-                          netBalance >= 0
-                              ? Colors.green
-                              : Colors.red), // green if positive, red if negative
+                          netBalance >= 0 ? Colors.green : Colors.red,
+                          settings.currency),
                     ],
                   ),
 
@@ -132,8 +144,6 @@ class InsightsScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 15),
-
-                  // Pie chart showing spending distribution
 
                   PieChart(
                     dataMap: expenseByCategory.isEmpty
@@ -161,23 +171,22 @@ class InsightsScreen extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 10),
-                  // List of categories with totals
 
                   Expanded(
                     child: ListView(
                       children: expenseByCategory.entries.map((entry) {
                         return Card(
                           child: ListTile(
-                            leading: CircleAvatar(
+                            leading: const CircleAvatar(
                               backgroundColor: Colors.blueGrey,
-                              child: const Icon(
+                              child: Icon(
                                 Icons.category,
                                 color: Colors.white,
                               ),
                             ),
                             title: Text(entry.key),
                             trailing: Text(
-                              '£${entry.value.toStringAsFixed(2)}',
+                              '${settings.currency}${entry.value.toStringAsFixed(2)}',
                               style: const TextStyle(
                                   fontWeight: FontWeight.bold),
                             ),
@@ -185,6 +194,40 @@ class InsightsScreen extends StatelessWidget {
                         );
                       }).toList(),
                     ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // NEW: Monthly savings section
+                  const Text(
+                    "Monthly Savings",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  Expanded(
+                    child: monthlySavings.isEmpty
+                        ? const Text("No savings yet")
+                        : ListView(
+                            children: monthlySavings.entries.map((entry) {
+                              return Card(
+                                child: ListTile(
+                                  leading: const Icon(Icons.savings),
+                                  title: Text(entry.key),
+                                  trailing: Text(
+                                    '${settings.currency}${entry.value.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
                   ),
                 ],
               ),

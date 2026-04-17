@@ -82,7 +82,7 @@ class SettingsScreen extends StatelessWidget {
               onSubmitted: (value) {
                 final goal = double.tryParse(value);
                 if (goal != null) {
-                  settings.setGoal(goal);
+                  settings.setSavingsGoal(goal);
                 }
               },
             ),

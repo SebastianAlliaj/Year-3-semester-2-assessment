@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/transaction.dart';
 import '../services/database_helper.dart';
+import '../providers/setting_provider.dart';
 import 'expense_screen.dart';
 import 'income_screen.dart';
 import 'insights_screen.dart';
@@ -18,8 +20,8 @@ class HomeScreen extends StatefulWidget {
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-// Stores all transactions for the logged-in user
 
+// Stores all transactions for the logged-in user
 class _HomeScreenState extends State<HomeScreen> {
 
   List<Transaction> _transactions = [];
@@ -27,13 +29,10 @@ class _HomeScreenState extends State<HomeScreen> {
   // Simple budget value (used for alert if user overspends)
   double budget = 500;
 
-  // NEW: savings jar + goal + currency
-  double savings = 0;
-  double savingsGoal = 1000;
-  String currency = "£";
+  // this stores how much user has moved into savings (reduces balance)
+  double savingsTransferred = 0;
 
-// Calculates the current balance based on income - expenses
-
+  // Calculates the current balance based on income - expenses
   double get totalBalance {
     double balance = 0;
 
@@ -41,6 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // If it's income we add it, if it's expense we subtract it
       balance += tx.isIncome ? tx.amount : -tx.amount;
     }
+
+    // subtract savings from balance (acts like moving money away)
+    balance -= savingsTransferred;
 
     return balance;
   }
@@ -65,7 +67,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> loadTransactions() async {
-
     final data =
         await DatabaseHelper().getTransactions(widget.username);
 
@@ -81,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void addTransaction(Transaction transaction) async {
-
     await DatabaseHelper().insertTransaction({
       "username": widget.username,
       "title": transaction.title,
@@ -95,9 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // this function deletes a transaction from the database and reloads the list
-
   void deleteTransaction(int index) async {
-
     final tx = _transactions[index];
 
     await DatabaseHelper().deleteTransaction(
@@ -111,9 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // this function shows a confirmation dialog before deleting a transaction
-
   void confirmDelete(int index) async {
-
     bool? confirm = await showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -135,6 +131,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (confirm == true) {
       deleteTransaction(index);
     }
+  }
+
+  // NEW: move money into savings (reduces balance)
+  void addToSavings(SettingProvider settings) {
+    double amount = 10; // fixed amount for now
+
+    settings.addSavings(amount);
+
+    setState(() {
+      savingsTransferred += amount;
+    });
   }
 
   Widget buildMenuBox(
@@ -168,20 +175,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // NEW: add money to savings jar
-  void addToSavings() {
-    setState(() {
-      savings += 50;
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
 
+    final settings = Provider.of<SettingProvider>(context);
     final balance = totalBalance;
 
     return Scaffold(
-
       appBar: AppBar(
         title: Text('Dashboard - ${widget.username}'),
         actions: [
@@ -214,13 +214,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       body: Padding(
         padding: const EdgeInsets.all(16),
-
         child: Column(
           children: [
 
             // this card shows the current balance at the top of the dashboard
             Card(
-
               elevation: 4,
               child: Padding(
                 padding: const EdgeInsets.all(20),
@@ -235,7 +233,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 10),
 
                     Text(
-                      "$currency${balance.toStringAsFixed(2)}",
+                      "${settings.currency}${balance.toStringAsFixed(2)}",
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -244,7 +242,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             : Colors.red,
                       ),
                     ),
-
                   ],
                 ),
               ),
@@ -252,29 +249,44 @@ class _HomeScreenState extends State<HomeScreen> {
 
             const SizedBox(height: 15),
 
-            // NEW: savings goal progress
+            // NEW: savings progress bar
             Card(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(15),
                 child: Column(
                   children: [
-                    const Text("Savings Goal"),
-                    const SizedBox(height: 5),
-                    LinearProgressIndicator(
-                      value: savings / savingsGoal,
+
+                    const Text(
+                      "Savings Goal",
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    const SizedBox(height: 5),
-                    Text("$currency$savings / $currency$savingsGoal"),
+
+                    const SizedBox(height: 10),
+
+                    LinearProgressIndicator(
+                      value: settings.savingsGoal == 0
+                          ? 0
+                          : settings.savingsAmount / settings.savingsGoal,
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    Text(
+                      "${settings.currency}${settings.savingsAmount.toStringAsFixed(2)} / ${settings.currency}${settings.savingsGoal}",
+                    ),
+
+                    const SizedBox(height: 10),
+
                     ElevatedButton(
-                      onPressed: addToSavings,
-                      child: const Text("Add £50 to Savings"),
+                      onPressed: () => addToSavings(settings),
+                      child: const Text("Add to Savings"),
                     ),
                   ],
                 ),
               ),
             ),
 
-            const SizedBox(height: 15),
+            const SizedBox(height: 10),
 
             // this shows a red warning box if the total expenses exceed the budget
             if (totalExpenses > budget)
@@ -324,7 +336,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   Colors.blue,
                   InsightsScreen(transactions: _transactions),
                 ),
-
               ],
             ),
 
@@ -378,7 +389,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               children: [
 
                                 Text(
-                                  "$currency${tx.amount.toStringAsFixed(2)}",
+                                  "${settings.currency}${tx.amount.toStringAsFixed(2)}",
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
                                     color: tx.isIncome
@@ -393,13 +404,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                               ],
                             ),
-
                           ),
                         );
                       },
                     ),
             ),
-
           ],
         ),
       ),
