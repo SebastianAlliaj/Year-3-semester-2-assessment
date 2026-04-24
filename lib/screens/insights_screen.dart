@@ -105,6 +105,19 @@ class _InsightsScreenState extends State<InsightsScreen> {
     return totalIncome - predictedMonthlyExpense;
   }
 
+  // NEW: months to reach savings goal
+  double get monthsToGoal {
+    final settings = Provider.of<SettingProvider>(context, listen: false);
+
+    double goal = settings.goal;
+    double current = settings.savings;
+    double monthly = predictedSavings;
+
+    if (monthly <= 0) return -1;
+
+    return (goal - current) / monthly;
+  }
+
   // reusable card for income / expense / balance
   Widget buildSummaryCard(String title, double amount, Color color, String currency) {
     return Expanded(
@@ -144,6 +157,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
     final netBalance = totalIncome - totalExpenses;
 
+    // NEW: progress %
+    double progress = settings.goal > 0
+        ? (settings.savings / settings.goal).clamp(0, 1)
+        : 0;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Insights'),
@@ -158,12 +176,11 @@ class _InsightsScreenState extends State<InsightsScreen> {
                   style: TextStyle(fontSize: 16),
                 ),
               )
-            : SingleChildScrollView( // ✅ FIX overflow + allow scrolling
+            : SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    // NEW: filter dropdown
                     DropdownButtonFormField<String>(
                       value: selectedRange,
                       items: ["All", "7 Days", "30 Days", "3 Months"]
@@ -270,7 +287,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
                     const SizedBox(height: 20),
 
-                    // NEW: Monthly savings section
                     const Text(
                       "Monthly Savings",
                       style: TextStyle(
@@ -298,7 +314,6 @@ class _InsightsScreenState extends State<InsightsScreen> {
 
                     const SizedBox(height: 20),
 
-                    // NEW: Prediction section
                     const Text(
                       "Spending Prediction",
                       style: TextStyle(
@@ -333,6 +348,56 @@ class _InsightsScreenState extends State<InsightsScreen> {
                         ),
                       ),
                     ),
+
+                    const SizedBox(height: 20),
+
+                    // NEW: Savings Goal + Progress
+                    const Text(
+                      "Savings Goal",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 10,
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    Text(
+                      "${(progress * 100).toStringAsFixed(1)}% of goal reached",
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    Builder(
+                      builder: (context) {
+                        final months = monthsToGoal;
+
+                        if (settings.goal <= 0) {
+                          return const Text("No savings goal set");
+                        }
+
+                        if (months < 0) {
+                          return const Text("Not enough data to predict");
+                        }
+
+                        if (months <= 0) {
+                          return const Text("🎉 Goal reached!");
+                        }
+
+                        return Text(
+                          "Estimated time: ${months.toStringAsFixed(1)} months",
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        );
+                      },
+                    ),
+
                   ],
                 ),
               ),

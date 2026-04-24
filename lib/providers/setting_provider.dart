@@ -19,8 +19,14 @@ class SettingProvider with ChangeNotifier {
   bool get darkMode => _darkMode;
   bool get notificationsEnabled => _notificationsEnabled;
   String get currency => _currency;
+
   double get savingsGoal => _savingsGoal;
   double get savingsAmount => _savingsAmount;
+
+  // ✅ ADD THESE (fixes your errors)
+  double get goal => _savingsGoal;
+  double get savings => _savingsAmount;
+
   List<Map<String, dynamic>> get savingsHistory => _savingsHistory;
 
   // Constructor (loads saved settings)
